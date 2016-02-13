@@ -10,7 +10,7 @@
 
         var defaults = {
             placeholder: "What's in your mind",
-            imageQuantity: -1 // illimited
+            imageQuantity: 3 // limitng it to 3 imAGES
         };
 
         var opts = jQuery.extend(defaults, options);

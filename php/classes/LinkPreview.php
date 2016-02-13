@@ -45,125 +45,130 @@ class LinkPreview
     function crawl($text, $imageQuantity, $header)
     {
 
-        if (preg_match(Regex::$urlRegex, $text, $match)) {
+            if (preg_match(Regex::$urlRegex, $text, $match)) {
+                $title = "";
+                $description = "";
+                $videoIframe = "";
+                $video = "no";
 
-            $title = "";
-            $description = "";
-            $videoIframe = "";
-            $video = "no";
+                if (strpos($match[0], " ") === 0)
+                    $match[0] = "http://" . substr($match[0], 1);
 
-            if (strpos($match[0], " ") === 0)
-                $match[0] = "http://" . substr($match[0], 1);
-
-            $finalUrl = $match[0];
-            $pageUrl = str_replace("https://", "http://", $finalUrl);
-
-            if (Content::isImage($pageUrl)) {
-                $images = $pageUrl;
-            } else {
-                $urlData = $this->getPage($pageUrl);
-                if (!$urlData["content"] && strpos($pageUrl, "//www.") === false) {
-                    if (strpos($pageUrl, "http://") !== false)
-                        $pageUrl = str_replace("http://", "http://www.", $pageUrl);
-                    elseif (strpos($pageUrl, "https://") !== false)
-                        $pageUrl = str_replace("https://", "https://www.", $pageUrl);
-
+                $finalUrl = $match[0];
+              //  $pageUrl = str_replace("https://", "http://", $finalUrl);
+                //removing reolace of https:// with http://
+                //dunno why it was done
+                $pageUrl =  $finalUrl;
+                error_log($pageUrl);
+                if (Content::isImage($pageUrl)) {
+                    $images = $pageUrl;
+                } else {
                     $urlData = $this->getPage($pageUrl);
+                    if (!$urlData["content"] && strpos($pageUrl, "//www.") === false) {
+                        if (strpos($pageUrl, "http://") !== false)
+                            $pageUrl = str_replace("http://", "http://www.", $pageUrl);
+                        elseif (strpos($pageUrl, "https://") !== false)
+                            $pageUrl = str_replace("https://", "https://www.", $pageUrl);
+
+                        $urlData = $this->getPage($pageUrl);
+                    }
+
+                    $pageUrl = $finalUrl = $urlData["url"];
+                    $raw = $urlData["content"];
+                    $header = $urlData["header"];
+
+                    $metaTags = Content::getMetaTags($raw);
+
+                    $tempTitle = Content::extendedTrim($metaTags["title"]);
+                    if ($tempTitle != "")
+                        $title = $tempTitle;
+
+                    if ($title == "") {
+                        if (preg_match(Regex::$titleRegex, str_replace("\n", " ", $raw), $matching))
+                            $title = $matching[2];
+                    }
+
+                    $tempDescription = Content::extendedTrim($metaTags["description"]);
+                    if ($tempDescription != "")
+                        $description = $tempDescription;
+                    else
+                        $description = Content::crawlCode($raw);
+
+                    $descriptionUnderstood = false;
+                    if ($description != "")
+                        $descriptionUnderstood = true;
+
+                    if (($descriptionUnderstood == false && strlen($title) > strlen($description) && !preg_match(Regex::$urlRegex, $description) && $description != "" && !preg_match('/[A-Z]/', $description)) || $title == $description) {
+                        $title = $description;
+                        $description = Content::crawlCode($raw);
+                    }
+
+                    if (Content::isJson($title)) {
+                        $title = "";
+                    }
+                    if (Content::isJson($description)) {
+                        $description = "";
+                    }
+
+                    $media = $this->getMedia($pageUrl);
+                    $images = count($media) == 0 ? Content::extendedTrim($metaTags["image"]) : $media[0];
+                    $videoIframe = $media[1];
+
+                    if ($images == "")
+                        $images = Content::getImages($raw, $pageUrl, $imageQuantity);
+                    if ($media != null && $media[0] != "" && $media[1] != "")
+                        $video = "yes";
+
+                    $title = Content::extendedTrim($title);
+                    $pageUrl = Content::extendedTrim($pageUrl);
+                    $description = Content::extendedTrim($description);
+
+                    $description = preg_replace(Regex::$scriptRegex, "", $description);
+
                 }
 
-                $pageUrl = $finalUrl = $urlData["url"];
-                $raw = $urlData["content"];
-                $header = $urlData["header"];
+                $finalLink = explode("&", $finalUrl);
+                $finalLink = $finalLink[0];
 
-                $metaTags = Content::getMetaTags($raw);
+                $description = strip_tags($description);
 
-                $tempTitle = Content::extendedTrim($metaTags["title"]);
-                if ($tempTitle != "")
-                    $title = $tempTitle;
-
-                if ($title == "") {
-                    if (preg_match(Regex::$titleRegex, str_replace("\n", " ", $raw), $matching))
-                        $title = $matching[2];
-                }
-
-                $tempDescription = Content::extendedTrim($metaTags["description"]);
-                if ($tempDescription != "")
-                    $description = $tempDescription;
-                else
-                    $description = Content::crawlCode($raw);
-
-                $descriptionUnderstood = false;
-                if ($description != "")
-                    $descriptionUnderstood = true;
-
-                if (($descriptionUnderstood == false && strlen($title) > strlen($description) && !preg_match(Regex::$urlRegex, $description) && $description != "" && !preg_match('/[A-Z]/', $description)) || $title == $description) {
-                    $title = $description;
-                    $description = Content::crawlCode($raw);
-                }
-
-                if(Content::isJson($title)){
-                    $title = "";
-                }
-                if(Content::isJson($description)){
-                    $description = "";
-                }
-
-                $media = $this->getMedia($pageUrl);
-                $images = count($media) == 0 ? Content::extendedTrim($metaTags["image"]) : $media[0];
-                $videoIframe = $media[1];
-
-                if ($images == "")
-                    $images = Content::getImages($raw, $pageUrl, $imageQuantity);
-                if ($media != null && $media[0] != "" && $media[1] != "")
-                    $video = "yes";
-
-                $title = Content::extendedTrim($title);
-                $pageUrl = Content::extendedTrim($pageUrl);
-                $description = Content::extendedTrim($description);
-
-                $description = preg_replace(Regex::$scriptRegex, "", $description);
-
-            }
-
-            $finalLink = explode("&", $finalUrl);
-            $finalLink = $finalLink[0];
-
-            $description = strip_tags($description);
-
-            $answer = array("title" => $title, "url" => $finalLink, "pageUrl" => $finalUrl, "canonicalUrl" => Url::canonicalPage($pageUrl), "description" => $description,
-                "images" => $images, "video" => $video, "videoIframe" => $videoIframe);
-
-            $result_json = Json::jsonSafe($answer, $header);
-            $result_json_decoded = json_decode($result_json);
-
-            $flagged = false;
-
-            if (!isset($result_json_decoded->title)) {
-                $title = utf8_encode($title);
-                $flagged = true;
-            }
-
-            if (!isset($result_json_decoded->description)) {
-                $description = utf8_encode($description);
-                $flagged = true;
-            }
-
-            if ($flagged) {
                 $answer = array("title" => $title, "url" => $finalLink, "pageUrl" => $finalUrl, "canonicalUrl" => Url::canonicalPage($pageUrl), "description" => $description,
                     "images" => $images, "video" => $video, "videoIframe" => $videoIframe);
 
-                return Json::jsonSafe($answer, $header);
-            } else {
+                $result_json = Json::jsonSafe($answer, $header);
+                $result_json_decoded = json_decode($result_json);
 
-                return $result_json;
+                $flagged = false;
+
+                if (!isset($result_json_decoded->title)) {
+                    $title = utf8_encode($title);
+                    $flagged = true;
+                }
+
+                if (!isset($result_json_decoded->description)) {
+                    $description = utf8_encode($description);
+                    $flagged = true;
+                }
+
+                if ($flagged) {
+                    $answer = array("title" => $title, "url" => $finalLink, "pageUrl" => $finalUrl, "canonicalUrl" => Url::canonicalPage($pageUrl), "description" => $description,
+                        "images" => $images, "video" => $video, "videoIframe" => $videoIframe);
+
+                    return Json::jsonSafe($answer, $header);
+                } else {
+
+                    return $result_json;
+                }
+
             }
+            return null;
 
-        }
-        return null;
+
     }
 
     function getPage($url)
     {
+        //adding support for https connections by disabling ssl certs
         $res = array();
         $options = array(CURLOPT_RETURNTRANSFER => true, // return web page
             CURLOPT_HEADER => false, // do not return headers
@@ -173,6 +178,7 @@ class LinkPreview
             CURLOPT_CONNECTTIMEOUT => 120, // timeout on connect
             CURLOPT_TIMEOUT => 120, // timeout on response
             CURLOPT_MAXREDIRS => 10, // stop after 10 redirects
+            CURLOPT_SSL_VERIFYPEER => false  //disable the fking SSL certs
         );
         $ch = curl_init($url);
         curl_setopt_array($ch, $options);
